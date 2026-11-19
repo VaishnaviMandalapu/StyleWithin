@@ -105,7 +105,8 @@ fun StyleWithinApp() {
                     name = record.name,
                     category = record.category,
                     colour = record.colour,
-                    photoPath = record.photoPath
+                    photoPath = record.photoPath,
+                    style = record.style
                 )
             }
         )
@@ -671,6 +672,13 @@ fun AddClothingScreen(
     var itemName by rememberSaveable { mutableStateOf("") }
     var colour by rememberSaveable { mutableStateOf("") }
     var photoPath by rememberSaveable { mutableStateOf<String?>(null) }
+    var selectedStyle by rememberSaveable {
+        mutableStateOf("Casual")
+    }
+
+    var styleMenuExpanded by remember {
+        mutableStateOf(false)
+    }
     var showError by remember { mutableStateOf(false) }
     var selectedMethod by rememberSaveable { mutableStateOf("Manual Entry") }
     var permissionMessage by remember { mutableStateOf("") }
@@ -792,6 +800,44 @@ fun AddClothingScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             Text("Category: $category", color = MutedText)
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+                "Choose Clothing Style",
+                color = Plum,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            Box {
+                OutlinedButton(
+                    onClick = { styleMenuExpanded = true },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(selectedStyle)
+                }
+
+                DropdownMenu(
+                    expanded = styleMenuExpanded,
+                    onDismissRequest = { styleMenuExpanded = false }
+                ) {
+                    listOf(
+                        "Sportswear",
+                        "Casual",
+                        "Formal",
+                        "Partywear",
+                        "Traditional",
+                        "Comfortable"
+                    ).forEach { style ->
+                        DropdownMenuItem(
+                            text = { Text(style) },
+                            onClick = {
+                                selectedStyle = style
+                                styleMenuExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
 
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -931,9 +977,10 @@ fun AddClothingScreen(
                                 name = itemName.ifBlank { "Gallery Item" },
                                 category = category,
                                 colour = colour.ifBlank { "Not specified" },
-                                photoPath = photoPath
+                                photoPath = photoPath,
+                                style = selectedStyle
                             )
-                        )
+                            )
                     }
                 },
                 modifier = Modifier
@@ -1126,6 +1173,37 @@ fun OutfitRecommendationScreen(
     var message by remember {
         mutableStateOf("")
     }
+    var generationCount by rememberSaveable {
+        mutableIntStateOf(0)
+    }
+
+    fun isColourMatch(first: String, second: String): Boolean {
+        val neutralColours = listOf(
+            "black", "white", "grey", "gray",
+            "beige", "cream", "brown", "navy"
+        )
+
+        val colour1 = first.trim().lowercase()
+        val colour2 = second.trim().lowercase()
+
+        if (colour1 == colour2) return true
+
+        if (colour1 in neutralColours ||
+            colour2 in neutralColours
+        ) return true
+
+        val matchingGroups = listOf(
+            listOf("blue", "navy", "denim"),
+            listOf("red", "pink", "burgundy"),
+            listOf("green", "olive", "khaki"),
+            listOf("yellow", "orange", "mustard"),
+            listOf("purple", "lilac", "lavender")
+        )
+
+        return matchingGroups.any { group ->
+            colour1 in group && colour2 in group
+        }
+    }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -1191,74 +1269,155 @@ fun OutfitRecommendationScreen(
 
             Button(
                 onClick = {
-                    val tops = items.filter { it.category.equals("Tops", true) }
-                    val bottoms = items.filter { it.category.equals("Bottoms", true) }
-                    val dresses = items.filter { it.category.equals("Dresses", true) }
-                    val shoes = items.filter { it.category.equals("Shoes", true) }
+                    val preferredStyles = when (selectedOccasion) {
+                        "Gym" -> listOf("Sportswear")
 
-                    val outfit = mutableListOf<ClothingItem>()
+                        "College", "Casual Day", "Movie",
+                        "Outing", "Walking", "Travel" ->
+                            listOf("Casual", "Comfortable")
 
-                    // Gym and walking outfits should use comfortable separates.
-                    if (selectedOccasion == "Gym") {
+                        "Work" -> listOf("Formal")
 
-                        // Only select sports bottoms for Gym.
-                        val gymBottoms = bottoms.filter {
-                            val name = it.name.lowercase()
-                            name.contains("leggings") ||
-                                    name.contains("joggers") ||
-                                    name.contains("gym shorts") ||
-                                    name.contains("sports shorts") ||
-                                    name.contains("track pants")
-                        }
+                        "Dinner" ->
+                            listOf("Casual", "Comfortable")
 
-                        if (tops.isNotEmpty() && gymBottoms.isNotEmpty()) {
-                            outfit.add(tops.first())
-                            outfit.add(gymBottoms.first())
-                            shoes.firstOrNull()?.let { outfit.add(it) }
-                        }
+                        "Date", "Party" ->
+                            listOf("Partywear")
 
-                    } else if (selectedOccasion == "Walking") {
+                        "Wedding" ->
+                            listOf("Traditional")
 
-                        if (tops.isNotEmpty() && bottoms.isNotEmpty()) {
-                            outfit.add(tops.first())
-                            outfit.add(bottoms.first())
-                            shoes.firstOrNull()?.let { outfit.add(it) }
-                        }
-
-                    } else {
-                        // Formal occasions can use a dress or a top and bottom.
-                        if (
-                            selectedOccasion in listOf(
-                                "Work", "Dinner", "Date", "Party", "Wedding"
-                            ) && dresses.isNotEmpty()
-                        ) {
-                            outfit.add(dresses.first())
-                        } else if (tops.isNotEmpty() && bottoms.isNotEmpty()) {
-                            outfit.add(tops.first())
-                            outfit.add(bottoms.first())
-                        } else if (dresses.isNotEmpty()) {
-                            outfit.add(dresses.first())
-                        }
-
-                        shoes.firstOrNull()?.let { outfit.add(it) }
-
-                        // Add accessories only when appropriate.
-                        items.firstOrNull { it.category.equals("Bags", true) }
-                            ?.let { outfit.add(it) }
-
-                        items.firstOrNull { it.category.equals("Jewellery", true) }
-                            ?.let { outfit.add(it) }
-
-                        items.firstOrNull { it.category.equals("Outerwear", true) }
-                            ?.let { outfit.add(it) }
+                        else -> listOf("Casual", "Comfortable")
                     }
 
-                    recommendedItems = outfit
+                    val suitableItems = items.filter { item ->
+                        preferredStyles.any { style ->
+                            item.style.equals(style, ignoreCase = true)
+                        }
+                    }
 
-                    message = if (outfit.isNotEmpty()) {
-                        "Your $selectedOccasion outfit is ready!"
+                    val outfitOptions =
+                        mutableListOf<List<ClothingItem>>()
+
+                    var chosenStyle = ""
+
+                    // Find a complete outfit using one style at a time.
+                    for (style in preferredStyles) {
+
+                        val styleTops = suitableItems.filter {
+                            it.category.equals("Tops", true) &&
+                                    it.style.equals(style, true)
+                        }
+
+                        val styleBottoms = suitableItems.filter {
+                            it.category.equals("Bottoms", true) &&
+                                    it.style.equals(style, true)
+                        }
+
+                        val styleDresses = suitableItems.filter {
+                            it.category.equals("Dresses", true) &&
+                                    it.style.equals(style, true)
+                        }
+
+                        val styleOptions =
+                            mutableListOf<List<ClothingItem>>()
+
+                        // Add dresses as complete outfits.
+                        styleDresses.forEach { dress ->
+                            styleOptions.add(listOf(dress))
+                        }
+
+                        // Match tops and bottoms with compatible colours.
+                        styleTops.forEach { top ->
+                            styleBottoms.forEach { bottom ->
+                                if (
+                                    isColourMatch(
+                                        top.colour,
+                                        bottom.colour
+                                    )
+                                ) {
+                                    styleOptions.add(
+                                        listOf(top, bottom)
+                                    )
+                                }
+                            }
+                        }
+
+                        // Allow same-style combinations if colours
+                        // do not match the basic colour rules.
+                        if (styleOptions.isEmpty()) {
+                            styleTops.forEach { top ->
+                                styleBottoms.forEach { bottom ->
+                                    styleOptions.add(
+                                        listOf(top, bottom)
+                                    )
+                                }
+                            }
+                        }
+
+                        if (styleOptions.isNotEmpty()) {
+                            chosenStyle = style
+                            outfitOptions.addAll(styleOptions)
+                            break
+                        }
+                    }
+
+                    if (outfitOptions.isEmpty()) {
+                        recommendedItems = emptyList()
+
+                        message =
+                            "No suitable outfit found. Add a matching dress or matching top and bottom in the required style."
+
                     } else {
-                        "Add suitable clothing to your wardrobe to generate an outfit."
+                        // Rotate between available outfit combinations.
+                        val selectedIndex =
+                            generationCount % outfitOptions.size
+
+                        val selectedOutfit =
+                            outfitOptions[selectedIndex].toMutableList()
+
+                        // Select shoes with the same style.
+                        val shoes = suitableItems.filter {
+                            it.category.equals("Shoes", true) &&
+                                    it.style.equals(chosenStyle, true)
+                        }
+
+                        if (shoes.isNotEmpty()) {
+                            selectedOutfit.add(
+                                shoes[generationCount % shoes.size]
+                            )
+                        }
+
+                        // Add optional matching accessories.
+                        if (selectedOccasion != "Gym") {
+                            val accessories = suitableItems.filter { item ->
+                                item.style.equals(chosenStyle, true) &&
+                                        (
+                                                item.category.equals("Bags", true) ||
+                                                        item.category.equals("Jewellery", true) ||
+                                                        item.category.equals("Outerwear", true) ||
+                                                        item.category.equals(
+                                                            "Other Accessories", true
+                                                        )
+                                                )
+                            }
+
+                            if (accessories.isNotEmpty()) {
+                                selectedOutfit.add(
+                                    accessories[
+                                        generationCount % accessories.size
+                                    ]
+                                )
+                            }
+                        }
+
+                        recommendedItems =
+                            selectedOutfit.distinctBy { it.id }
+
+                        generationCount++
+
+                        message =
+                            "Your $selectedOccasion outfit is ready!"
                     }
                 },
                 modifier = Modifier
@@ -1293,17 +1452,37 @@ fun OutfitRecommendationScreen(
                     Column(
                         modifier = Modifier.padding(16.dp)
                     ) {
+                        if (!item.photoPath.isNullOrBlank()) {
+                            ClothingPhoto(
+                                photoPath = item.photoPath
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+                        }
+
                         Text(
                             item.name,
                             color = Plum,
                             fontWeight = FontWeight.Bold,
                             fontSize = 18.sp
                         )
-                        Text("Category: ${item.category}", color = MutedText)
-                        Text("Colour: ${item.colour}", color = MutedText)
+
+                        Text(
+                            "Category: ${item.category}",
+                            color = MutedText
+                        )
+                        Text(
+                            "Colour: ${item.colour}",
+                            color = MutedText
+                        )
+                        Text(
+                            "Style: ${item.style}",
+                            color = MutedText
+                        )
                     }
                 }
             }
         }
     }
 }
+
+

@@ -7,7 +7,7 @@ import android.database.sqlite.SQLiteOpenHelper
 
 // This class creates and manages the local wardrobe database.
 class WardrobeDatabase(context: Context) :
-    SQLiteOpenHelper(context, "stylewithin.db", null, 2) {
+    SQLiteOpenHelper(context, "stylewithin.db", null, 3) {
 
     override fun onCreate(db: SQLiteDatabase) {
         // Each clothing item gets its own row.
